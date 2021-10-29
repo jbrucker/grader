@@ -1,0 +1,248 @@
+#!/usr/bin/python3
+import sys
+import os, os.path
+
+def usage():
+    print(f"""
+Usage:  {commandname} [-f studentList]  reponame [student1 student2 ...]
+
+Clone student repositories for assignments that students 
+commit to their individual account.
+
+Arguments are:
+studentList = name of CSV file containing list of student IDs
+        and Github or Bitbucket userids. File format is described below.
+reponame = name of repository to checkout for each student.
+student1, ... = list of students to clone. If omitted then all students
+        in student list are cloned.
+
+The studentlist file contains a list of student id or name,
+Github ID, and real name.  Any additional fields are ignored.
+You can organize the studentlist file (CSV) it in two ways:
+
+1. To clone student work into a directory using their studentid, use:
+    # studentid, github_id, Real Name, optional
+    571111111,fatalaijon,Fatalai Jon
+    582222222,billgates,Bill Gates
+
+2. To use student's first name as base directory for his projects, use:
+
+    Fatalai,fatalaijon,Fatalai Jon,5710111111 
+    Bill,billgates,Bill Gates,58202222222
+    Gunthee,KameriiJ,Gunthee Tawewatmongkol,6010546915
+
+Lines beginning with # char and blank lines are ignored.
+
+Output:
+    Script uses or creates a directory inside the current directory
+    for each student-identifier, unless the directory already exists.
+    It clones the project into the student's directory,
+    using the project name as subdirectory name.
+    For example, if the project name name is "project1":
+    ./5710111111/project1
+    ./5820222222/project1
+    ./5710333333/project1
+
+Or, if you studentlist file has student's NAME in the first column,
+then the cloned projects will be organized like this:
+    ./Bill/project1
+    ./Fatalai/project1
+    ./Gunthee/project1
+
+On Github Classroom, assignment repositories have names "assignmnt-githubId",
+such as "project1-fatalaijon".  This script removes the "-fatalaijon"
+when cloning the repo. 
+
+Requires: Python 3.6 and 'git' command on the OS search path.
+Requires a text file containing student data and corresponding
+Github or Bitbucket ids.  Default filename is {ACCOUNTS_FILE}
+
+Authentication:
+You must pre-authenticate to Github or Bitbucket (because this script
+supresses prompting for login).  You can trigger this by issuing any
+git command that forces you to authenticate to Github.
+If you use ssh keys, then then type "ssh -T git@github.com" to 
+force ssh-agent to start and unlock your ssh key for Github.
+
+Your Github account needs read-access to the student repos.
+
+See comments in the script for additional information.
+    """)
+    exit()
+
+########################################################################
+# Variables to Set:
+
+# UPDATE_EXISTING_REPO = True or False. If a local repo already exists for
+#                a student project, should it be updated using "git pull"?
+UPDATE_EXISTING_REPO = True
+
+# ACCOUNTS_FILE = name of CSV file containing student info
+# 
+# The first field is used to identify student (student_id or name)
+# and will be the name of directory used to store student projects,
+# second field is their Github_id, third field is displayed on
+# terminal as part of progress messages. Other fields ignored.
+# See usage() for examples.
+
+ACCOUNTS_FILE = "./students.csv"
+
+# Commands to checkout or export a project, using a Python print pattern.
+# The arguments to fill the pattern will be:
+# {0} will be project name to checkout,
+# {1} will be person's id on Bitbucket or Github, 
+# {2} will be the base directory to clone into (Student ID or first name)
+#
+# TARGET = where to create clone of student project, relative to the 
+#          current directory.  "{2}/{0}" means: student/ProjectName
+TARGET="{2}/{0}"
+
+# CHECKOUT = Git clone command template.
+
+## Github using ssh protocol
+CHECKOUT = "git clone -q git@github.com:{1}/{0}.git "
+## Github using https protocol
+#CHECKOUT = "git clone -q https://github.com/{1}/{0}.git "
+
+# Prevent git from prompting for login. Just fail if the repo is not found.
+# Prepend this string to each "git" command, since they are separate shells.
+NOPROMPT="GIT_TERMINAL_PROMPT=0 "
+
+STATUS = "git status"
+
+TEST=0
+
+def clonegit( studentid, studentname, remoteid, project_name ):
+    """
+    Clone or update a local git repository for a student.
+
+    studentid is the student id used for local parent directory
+       of git clone.  This directory must already exist.
+    studentname (may be empty) is student real name, shown on output
+    remoteid  is the person's id on Github or Bitbucket.
+    project_names are possible names for the remote project on Github.
+       This allows you to be lenient in case if misnamed repos.
+       
+    Returns: 0 if success, not 0 if failure
+    """
+    # prefix on print() to distinguish script messages from git output
+    PROMPT = ">>>"
+    PROMPT2 = ">"
+    if TEST: return 1
+    # if destination directory (target) already exists, update it?
+    target=TARGET.format(project_name, remoteid, studentid)
+    if os.path.exists(target):
+        if UPDATE_EXISTING_REPO:
+            print(PROMPT, target, "already exists. Update using 'git pull'")
+            cwd = os.getcwd()
+            os.chdir(target)
+            rc = system(NOPROMPT+"git pull")  
+            os.chdir(cwd)
+            return rc
+        else:
+            print(PROMPT, target, "already exists. Not updating")
+            return 0
+    print(PROMPT, "Checkout %s for %s (%s)" % (project_name, studentid, studentname) )
+    cmd=CHECKOUT.format(project_name, remoteid, studentid) + " " + target
+    print(cmd)
+    # execute the command
+    rc = system(NOPROMPT+cmd)
+    if rc != 0:
+        print(PROMPT2, "Failed. Status code:",rc)
+    return rc
+
+def system(command):
+    """
+    Issue a command to the operating system and return the result code.
+    """
+    # print( command )
+    rc = os.system( command )
+    return rc
+
+def match(match_array, student_list):
+    """
+    Test if any of the values in match_array (parsed data for one student)
+    match *any* of the elements in student_list.
+    If student_list is null or empty, then anything matches.
+    """
+    if len(student_list) == 0: return True
+    for arg in match_array:
+        if arg in student_list: return True
+    return False
+
+########################################################################
+# Main block to parse command line args and clone repsitories
+
+argv = sys.argv
+
+commandname = os.path.basename( argv.pop(0) )
+
+# Parse command line: -f accounts_file project_name
+if len(argv) > 0 and argv[0] == "-f":
+    argv.pop(0)
+    if len(argv) == 0: usage()
+    ACCOUNTS_FILE = argv.pop(0)
+
+if len(argv) == 0 or argv[0].startswith("-"):
+    usage()
+
+# Next arg should be project name (which is also repo name)
+project_name = argv.pop(0)
+
+# Remaining args is list of student names matching first arg 
+# in accounts file.
+# Remove trailing / (added by shell) from student names
+student_list = [arg[:-1] if arg.endswith('/') else arg for arg in argv]
+print(student_list)
+
+if not os.path.isfile(ACCOUNTS_FILE):
+    print("Student data file not found:",ACCOUNTS_FILE)
+    exit()
+
+# Map of student id and names  where checkout failed
+failed = { }
+
+# Count successes
+completed = 0
+
+# file object containing list of student accounts
+with open(ACCOUNTS_FILE,  'r') as student_file:
+    # get account info for each student, process one by one
+    for u in student_file:
+        u = u.strip()
+        # skip comment lines beginning and blank lines
+        if u.startswith("#") or len(u) == 0:
+            continue
+        args = u.split(',')
+        if len(args) < 3:
+            print("Not enough values on line:", u)
+            print("Skipping")
+            continue
+        # If any command line args (student_list) check for match
+        if not match(args, student_list):
+            continue
+        studentid = args[0]
+        remoteid = args[1]    # id on github
+        studentname = args[2]
+        rc = 1
+        # create student directory if it doesn't exist
+        if not os.path.isdir(studentid):
+            os.mkdir(studentid)
+        if not os.path.isdir(studentid):
+            print(PROMPT, "Could not create directory", studentid)
+            failed.append(studentid)
+            continue
+        # 
+        rc = clonegit( studentid, studentname, remoteid, project_name)
+        # did it succeed?
+        if rc == 0:
+             completed = completed + 1
+        else:
+            print("Checkout failed for", studentid, studentname)
+            failed[studentid] = studentname
+
+print("")
+print("Checked out",completed,"projects")
+if len(failed) > 0:
+	print(f"Checkout {project_name} failed for {len(failed)} accounts:" )
+_ = { print(id," ",failed[id]) for id in sorted(failed.keys()) }

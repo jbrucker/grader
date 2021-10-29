@@ -1,0 +1,17 @@
+OOP/
+# ignore IDE project files
+.classpath
+.project
+.settings
+.vscode
+.idea
+# BlueJ junk
+README.TXT
+*.ctxt
+*.bluej
+# editor tmp files
+*.swp
+# compiler output
+*.class
+*.pyc
+__pycache__
