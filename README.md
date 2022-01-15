@@ -25,8 +25,9 @@ blank lines and lines between with # are ignored. All other lines must
 contain at least 3 fields.
 
 * Field 1: student name or other identifier
-* Field 2: student Github ID
+* Field 2: student Github Name
 * Field 3: verbose student name or identifier, used in printed messages
+
 
 ## `clonegit` 
 
@@ -55,31 +56,50 @@ I add `bin` to my shell path and make the Python script executable (Linux mode 7
 
 ### `cloneclassroom`
 
-A Python script to clone a Github Classroom assignment.  This script requires some editing before you use it:
+A Python script to clone a Github Classroom assignment.  This script requires some editing before you use it.
 
-- set `CLASSROOM="github-classroom-name"`
-- set `BASE_URL="git@github.com:"` or `"https://github.com/"` depending on whether you use SSH or HTTPS authentication.
-- there are other variables you can set in the script. 
+Configuration:
 
-**pre-authenticate** to Github: enter some git command that causes Github to prompt you for authentication before your run this script, so you are authenticated to a user that has permission to access the Github Classroom private repos. This is because the script suppresses the authentication prompt to avoid endless prompting when attempting to clone a non-existing student assignment.
+- create a `students.csv` file in the base directory where you'll run the script
+- In `cloneclassroom` set `BASE_URL="git@github.com:"` for SSH authentication or `"https://github.com/"` for HTTPS authentication on Github.
+- create a file named `.classroom` containing the name of the Github organization for the classroom, **or** hardcode the CLASSROOM variable value in the script:    
+  Example for the Programming 2 course in 2022:
+  - hardcode CLASSROOM at the top of `bin/cloneclassroom`:    
+    `CLASSROOM="prog2022"`
+  - or, create a .classroom file containing a single line:
+    ```
+    prog2022
+    ```
 
-Usage: `python3 bin/cloneclassroom assignment2`
+**Pre-authenticate** to Github: when you run the script, you should already be authenticated so Github.  This is because the script suppresses the authentication prompt to avoid endless prompting when attempting to clone a non-existing student assignment.
 
-clones all student submissions for an assignment where the base repo name is "assignment1".  As with `clonegit`, it puts the student repos in a subdirectory having the student name(s):
-```
-Alan/assignment2
-James/assignment2
-Martin/assignment2
-```
+Enter any git command that causes Github to prompt you for authentication before your run this script, so you are authenticated to a user that has permission to access the Github Classroom private repos. 
 
-Other Usage: `python3 bin/cloneclassroom assignment2 Alan [...]`
+Usage: 
 
-clone `assignment2` for only the specified student(s), e.g. "Alan".
+1. Clone or update all student repos for an assignment named "lab2"
+   ```
+   python3 bin/cloneclassroom lab2
+   ```
+   clones all student submissions for an assignment where the base repo name is "lab2".  As with `clonegit`, it puts the student repos in a subdirectory having the student's name:
+   ```
+   Alan/lab2
+   James/lab2
+   Martin/lab2
+   ```
 
-Help Message: `python3 bin/cloneclassroom`  (no arguments)
+2. Clone or update an assignment for specific students:    
+   Usage: `python3 bin/cloneclassroom assignment-name  student1 [...]`    
+   Example: clone or pull updates for "Alan" and "Martin"
+   ```
+   python3 cloneclassroom lab2 Alan Martin   
+   ```
+
+3. Print a help message: `python3 bin/cloneclassroom`  (no arguments)
 
 
-### [Github Classroom Assistant][classroom-assistant] - Another Way to Download from Github Classroom
+### [Github Classroom Assistant][classroom-assistant] 
 
 [Github Classroom Assistant][classroom-assistant] is a GUI application for managing assignments in Github Classroom.  Assistant is a desktop app built on the Electron framework.  Uses tons of Javascript packages.
+
 

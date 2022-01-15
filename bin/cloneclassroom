@@ -1,28 +1,35 @@
 #!/usr/bin/python3
-import sys
 import os
+import re
+import sys
 
 # Github organization name associated with the Classroom
-CLASSROOM = "ISP21"
-
+CLASSROOM = "prog2022"
+# read classroom name from a file
+if os.path.isfile(".classroom"):
+    with open(".classroom") as f:
+        CLASSROOM = f.readline().strip()
+        # allow only letters, digits, underscore, dash
+        CLASSROOM = re.sub(r"[^\w-]","", CLASSROOM)
+        f.close()
+print(f"CLASSROOM={CLASSROOM}")
 
 def usage():
     """Print a usage message and exit."""
     print(f"""
-Usage:  {commandname} [-f studentdata] reponame [studentname ...]
+Usage:  {commandname} [-f studentList] reponame [studentname_or_id ...]
 
 Clone student repositories from Github Classroom.
 
 Arguments:
-studentdata = name of a CSV file containing a list of student identifiers
-        (can be name, student ID) and their Github or Bitbucket userids. 
-        File format is described below.
+studentList = name of CSV file containing list of student IDs
+        and Github or Bitbucket userids. File format is described below.
         The default studentlist is {ACCOUNTS_FILE}.
 reponame = base name of repository to checkout for each student.
-[studentname ...] = If these optional arguments are supplied, then
-        the project is cloned only for matching students.
+[studentname_or_id ...] = If these optional arguments are supplied, then
+        the project is only cloned for matching students in studentList.
 
-The studentdata file contains a list of student id or name,
+The studentlist file contains a list of student id or name,
 Github ID, and real name, in CSV format.  Any additional fields are ignored.
 The first field in this file will be the base diretory name where the
 student's assignment (repo) is cloned to.  Two examples are:
@@ -31,69 +38,49 @@ student's assignment (repo) is cloned to.  Two examples are:
    (this is what I do)
 
     # first_name, github_id, Real Name, optional
-    Alan,turing,Alan Turing,5710111111
-    Bill,billgates,Bill Gates,58102222222
-    James,jgosling,James Gosling,5910333333
+    Fatalai,fatalaijon,Fatalai Jon,5710111111
+    Bill,billgates,Bill Gates,58202222222
 
 2. Use student id as base directory for his assignments:
 
     # student_id, github_id, Real Name, optional
-    5710111111,Alan,turing,Alan Turing
-    5810222222,Bill,billgates,Bill Gates
-    5910333333,James,jgosling,James Gosling
+    571111111,fatalaijon,Fatalai Jon
+    582222222,billgates,Bill Gates
 
-Lines beginning with # and blank lines are ignored.
+Lines beginning with # char and blank lines are ignored.
 
 Output:
-    The script uses or creates a directory inside the current directory
-    for each student-identifier (whatever is in Field 1 of CSV file).
-    It clones (or pulls updates) the assignment into the student's directory,
-    using the assignment name as subdirectory name.
+    Script uses or creates a directory inside the current directory
+    for each student-identifier, unless the directory already exists.
+    It clones the assignment into the student's directory,
+    using the assignment name (Github as subdirectory name.
 
-    For example, using the first CSV example above, if the assignment name 
-    is "project1" then the output will be in:
-
-    ./Alan/project1
+    For example, if the assignment name name is "project1":
     ./Bill/project1
-    ./James/project1
+    ./Fatalai/project1
+
+    Or, if the student_list file has student id in first column:
+    ./5710111111/project1
+    ./5820222222/project1
 
 On Github Classroom, assignment repository names have the
-format "assignment-githubId", such as "project1-turing".
-This script removes the "-githubId" portion when cloning.
+format "assignment-githubId", such as "project1-fatalaijon".
+This script removes the "-fatalaijon" when cloning.
 
-Requires: 
-1. Python 3.6 and 'git' command on your shell's search path.
-2. {ACCOUNTS_FILE} containing student data and corresponding
-3. You have permission to access repos in the Github Classroom
-4. Set BASE_URL in this script to "git@github.com" (SSH) or "http://github.com" (HTTPS), depending on how you authenticate to Github
-5. May require a Linux or MacOS-like shell that allows you to set
-   an environment variable as a prefix to a command, because this
-   script uses:
-   GIT_TERMINAL_PROMPT=0 git clone {repo_url} ...
-
-   This works for Bash and Zsh.  If it doesn't work for your shell then
-   try setting NOPROMPT = "" in the script, but this will result in
-   git prompting you to authenticate when it tries to clone a non-existing
-   repository.
+Requires: Python 3.6 or newer and 'git' command on your shell's search path.
+Requires a studentlist file containing student data and corresponding
+Github ids.  Default filename is {ACCOUNTS_FILE}
 
 Authentication:
-
-You must pre-authenticate to Github because this script supresses
-prompting for login.  You can trigger session-based authentication 
-by issuing any git command that forces you to authenticate to Github.
+You must pre-authenticate to Github (or Bitbucket) because this script
+supresses prompting for login.  You can trigger this by issuing any
+git command that forces you to authenticate to Github.
 If you use ssh keys, type "ssh -T git@github.com" to
 force ssh-agent to start and unlock your ssh key for Github.
 
 Your Github account needs read-access to the student repos.
 
-OTHER CUSTOMIZATION
-There are several variables you can set in this script, such as:
-
-UPDATE_EXISTING_REPO = {UPDATE_EXISTING_REPO} whether or not to pull updates
-CLONE_OPTIONS = {CLONE_OPTIONS}
-PULL_OPTIONS = {PULL_OPTIONS}
-TEST = {TEST}     # if 1 then commands are printed but not executed
-
+See comments in the script for additional customizations.
     """)
     sys.exit()
 
@@ -115,11 +102,6 @@ UPDATE_EXISTING_REPO = True
 
 ACCOUNTS_FILE = "./students.csv"
 
-# For Github, using SSH protocol
-BASE_URL = "git@github.com:"
-# For Github using HTTPS protocol include trailing '/'
-# BASE_URL = "https://github.com/"
-
 # Commands to checkout a project, using a Python print pattern.
 # The arguments to fill the pattern will be:
 # {0} = project name to checkout,
@@ -136,18 +118,25 @@ CLONE_OPTIONS = "-b master -q "   # "--depth 1"
 # Options for pull (when updating existing repo)
 PULL_OPTIONS = "--all"
 
+# Use SSH protocol with git.
+#BASE_URL = "git@github.com:"
+# Use HTTPS protocol with git.
+BASE_URL = "https://github.com/"
+
 # CHECKOUT = Git clone command template.
 CHECKOUT = f"git clone {CLONE_OPTIONS} {BASE_URL}{CLASSROOM}" + "/{0}-{1}.git "
 
 # Prevent git from prompting for login, which happens when git clone fails. 
 # Just fail if the repo is not found.
 # Prepend this string to each "git" command, since they are separate shells.
+# This works on Bash, but maybe not with other shells.
+
 NOPROMPT = "GIT_TERMINAL_PROMPT=0 "
 
 STATUS = "git status"
 
-# If TEST != 0 then print the commands but don't execute them
-TEST = 0
+# If TEST is True, then print the commands but don't execute them
+TEST = False
 
 
 def clonegit(studentid, studentname, remoteid, project_name):
@@ -191,7 +180,7 @@ def clonegit(studentid, studentname, remoteid, project_name):
 
 def system(command):
     """Issue a command to the operating system and return the result code."""
-    if TEST != 0:
+    if TEST:
         print(command)
         return 0
     rc = os.system(NOPROMPT + command)
@@ -200,7 +189,7 @@ def system(command):
 
 def match(match_list, student_list):
     """
-    Test if any values in match_list match *any* of the elements in student_list.
+    Test if any values in match_list match *any* element in student_list.
 
     If student_list is null or empty, then anything matches.
     """
@@ -252,9 +241,9 @@ def count_with_unit(count: int, word: str, plural="s") -> str:
     plurality = word if count == 1 else word + plural
     return f"{count} {plurality}"
 
+
 ########################################################################
 # Main block to parse command line args and clone repsitories
-
 
 argv = sys.argv
 commandname = os.path.basename(argv.pop(0))
@@ -273,7 +262,7 @@ if not os.path.isfile(ACCOUNTS_FILE):
 if len(argv) == 0 or argv[0].startswith("-"):
     usage()
 
-# Next arg is the student repo (assignment) to clone.
+# Next arg is the assignment to clone. It is basename of repo on Github.
 project_name = argv.pop(0)
 
 # Any remaining args are list of students in ACCOUNTS_FILE to checkout.
@@ -307,7 +296,7 @@ for args in csv_reader(ACCOUNTS_FILE, min_args=3):
     retcode = clonegit(base_dir, student_name, remote_id, project_name)
     # did it succeed?
     if retcode == 0:
-        completed = completed + 1
+        completed += 1
     else:
         print("Checkout failed for %s (%s)" % (base_dir, student_name))
         failed[base_dir] = student_name
